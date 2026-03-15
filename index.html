@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tactical Asset Allocation Backtest | TAA Model</title>
+    <meta name="description" content="Backtest tactical asset allocation models including Moving Average, Dual Momentum, Relative Strength, Adaptive Allocation, Target Volatility, and more. Data powered by Yahoo Finance.">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+</head>
+<body>
+
+<div class="app-container">
+    <!-- Header -->
+    <header class="header">
+        <div class="header-badge"><span class="dot"></span> Yahoo Finance Data</div>
+        <h1>Tactical Asset Allocation Model</h1>
+        <p>Backtest tactical asset allocation strategies with real market data</p>
+    </header>
+
+    <!-- Configuration Form -->
+    <div class="card form-section" id="config-card">
+        <div class="card-header">
+            <div class="icon">⚙</div>
+            <h2>Model Configuration</h2>
+        </div>
+        <div class="card-body">
+            <!-- Model Selection -->
+            <div class="section-title">TAA Model</div>
+            <div class="form-row form-row-2" style="margin-bottom: 16px;">
+                <div class="form-group">
+                    <label>Timing Model</label>
+                    <select id="taa-model" onchange="onModelChange()">
+                        <option value="moving_average">Moving Average</option>
+                        <option value="dual_momentum">Dual Momentum</option>
+                        <option value="relative_strength">Relative Strength</option>
+                        <option value="adaptive_allocation">Adaptive Allocation</option>
+                        <option value="target_volatility">Target Volatility</option>
+                        <option value="market_valuation">Market Valuation (Shiller PE10)</option>
+                        <option value="seasonal">Seasonal</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div id="model-description" class="model-description"></div>
+
+            <!-- Moving Average Params -->
+            <div id="params-moving_average" class="param-section active">
+                <div class="section-title">Moving Average Parameters</div>
+                <div class="form-row form-row-3">
+                    <div class="form-group">
+                        <label>MA Period (Months)</label>
+                        <input type="number" id="ma-period" value="10" min="1" max="60">
+                        <span class="help-text">Simple moving average lookback</span>
+                    </div>
+                    <div class="form-group">
+                        <label>Short MA Period</label>
+                        <input type="number" id="ma-short-period" value="1" min="1" max="30" disabled>
+                        <span class="help-text">For crossover signal</span>
+                    </div>
+                    <div class="form-group" style="justify-content: flex-end;">
+                        <div class="checkbox-group">
+                            <input type="checkbox" id="ma-crossover" onchange="document.getElementById('ma-short-period').disabled = !this.checked">
+                            <label for="ma-crossover">Use MA Crossover</label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Dual Momentum Params -->
+            <div id="params-dual_momentum" class="param-section">
+                <div class="section-title">Dual Momentum Parameters</div>
+                <div class="form-row form-row-3">
+                    <div class="form-group">
+                        <label>Lookback Period (Months)</label>
+                        <input type="number" id="dm-lookback" value="12" min="1" max="36">
+                        <span class="help-text">Momentum calculation period</span>
+                    </div>
+                    <div class="form-group">
+                        <label>Top N Assets</label>
+                        <input type="number" id="dm-ntop" value="1" min="1" max="10">
+                        <span class="help-text">Number of assets to select</span>
+                    </div>
+                    <div class="form-group">
+                        <label>Exclude Recent (Months)</label>
+                        <input type="number" id="dm-exclude" value="1" min="0" max="6">
+                        <span class="help-text">Skip recent months (reversal)</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Relative Strength Params -->
+            <div id="params-relative_strength" class="param-section">
+                <div class="section-title">Relative Strength Parameters</div>
+                <div class="form-row form-row-3">
+                    <div class="form-group">
+                        <label>Lookback Period (Months)</label>
+                        <input type="number" id="rs-lookback" value="12" min="1" max="36">
+                    </div>
+                    <div class="form-group">
+                        <label>Top N Assets</label>
+                        <input type="number" id="rs-ntop" value="3" min="1" max="10">
+                    </div>
+                    <div class="form-group">
+                        <label>Exclude Recent (Months)</label>
+                        <input type="number" id="rs-exclude" value="1" min="0" max="6">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Adaptive Allocation Params -->
+            <div id="params-adaptive_allocation" class="param-section">
+                <div class="section-title">Adaptive Allocation Parameters</div>
+                <div class="form-row form-row-4">
+                    <div class="form-group">
+                        <label>Momentum Lookback (Months)</label>
+                        <input type="number" id="aa-mom-lookback" value="6" min="1" max="24">
+                    </div>
+                    <div class="form-group">
+                        <label>Volatility Lookback (Months)</label>
+                        <input type="number" id="aa-vol-lookback" value="3" min="1" max="12">
+                    </div>
+                    <div class="form-group">
+                        <label>Top N Assets</label>
+                        <input type="number" id="aa-ntop" value="5" min="1" max="10">
+                    </div>
+                    <div class="form-group">
+                        <label>Weighting Scheme</label>
+                        <select id="aa-weighting">
+                            <option value="equal">Equal Weight</option>
+                            <option value="risk_parity">Risk Parity</option>
+                            <option value="min_variance" selected>Minimum Variance</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Target Volatility Params -->
+            <div id="params-target_volatility" class="param-section">
+                <div class="section-title">Target Volatility Parameters</div>
+                <div class="form-row form-row-3">
+                    <div class="form-group">
+                        <label>Target Volatility (%)</label>
+                        <input type="number" id="tv-target" value="10" min="1" max="50" step="0.5">
+                        <span class="help-text">Annualized target volatility</span>
+                    </div>
+                    <div class="form-group">
+                        <label>Volatility Lookback (Months)</label>
+                        <input type="number" id="tv-lookback" value="3" min="1" max="12">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Market Valuation Params -->
+            <div id="params-market_valuation" class="param-section">
+                <div class="section-title">Market Valuation (Shiller PE10) Parameters</div>
+                <div class="form-row form-row-3">
+                    <div class="form-group">
+                        <label>PE10 Low Threshold</label>
+                        <input type="number" id="pe10-low" value="14" min="5" max="30">
+                    </div>
+                    <div class="form-group">
+                        <label>PE10 High Threshold</label>
+                        <input type="number" id="pe10-high" value="22" min="10" max="50">
+                    </div>
+                </div>
+                <div class="form-row form-row-3" style="margin-top: 8px;">
+                    <div class="form-group">
+                        <label>Stock Alloc. (PE10 ≥ High) %</label>
+                        <input type="number" id="pe10-stock-high" value="40" min="0" max="100">
+                    </div>
+                    <div class="form-group">
+                        <label>Stock Alloc. (Low ≤ PE10 < High) %</label>
+                        <input type="number" id="pe10-stock-mid" value="60" min="0" max="100">
+                    </div>
+                    <div class="form-group">
+                        <label>Stock Alloc. (PE10 < Low) %</label>
+                        <input type="number" id="pe10-stock-low" value="80" min="0" max="100">
+                    </div>
+                </div>
+                <div class="form-row form-row-2" style="margin-top: 8px;">
+                    <div class="form-group">
+                        <label>Stock Ticker</label>
+                        <input type="text" id="pe10-stock-ticker" value="SPY" placeholder="SPY">
+                    </div>
+                    <div class="form-group">
+                        <label>Bond Ticker</label>
+                        <input type="text" id="pe10-bond-ticker" value="TLT" placeholder="TLT">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Seasonal Params -->
+            <div id="params-seasonal" class="param-section">
+                <div class="section-title">Seasonal Model — Select Months to Avoid (Move to Cash)</div>
+                <div class="month-grid" id="month-grid">
+                    <button class="month-btn" data-month="1" onclick="toggleMonth(this)">Jan</button>
+                    <button class="month-btn" data-month="2" onclick="toggleMonth(this)">Feb</button>
+                    <button class="month-btn" data-month="3" onclick="toggleMonth(this)">Mar</button>
+                    <button class="month-btn" data-month="4" onclick="toggleMonth(this)">Apr</button>
+                    <button class="month-btn active" data-month="5" onclick="toggleMonth(this)">May</button>
+                    <button class="month-btn active" data-month="6" onclick="toggleMonth(this)">Jun</button>
+                    <button class="month-btn active" data-month="7" onclick="toggleMonth(this)">Jul</button>
+                    <button class="month-btn active" data-month="8" onclick="toggleMonth(this)">Aug</button>
+                    <button class="month-btn active" data-month="9" onclick="toggleMonth(this)">Sep</button>
+                    <button class="month-btn active" data-month="10" onclick="toggleMonth(this)">Oct</button>
+                    <button class="month-btn" data-month="11" onclick="toggleMonth(this)">Nov</button>
+                    <button class="month-btn" data-month="12" onclick="toggleMonth(this)">Dec</button>
+                </div>
+            </div>
+
+            <!-- Portfolio Assets -->
+            <div class="section-title" style="margin-top: 24px;">Portfolio Assets</div>
+            <div class="ticker-grid" id="ticker-grid">
+                <div class="ticker-input-wrap">
+                    <span class="ticker-label">Asset 1</span>
+                    <input type="text" class="ticker-input" value="SPY" placeholder="SPY">
+                </div>
+                <div class="ticker-input-wrap">
+                    <span class="ticker-label">Asset 2</span>
+                    <input type="text" class="ticker-input" value="EFA" placeholder="EFA">
+                </div>
+                <div class="ticker-input-wrap">
+                    <span class="ticker-label">Asset 3</span>
+                    <input type="text" class="ticker-input" value="TLT" placeholder="TLT">
+                </div>
+                <div class="ticker-input-wrap">
+                    <span class="ticker-label">Asset 4</span>
+                    <input type="text" class="ticker-input" value="GLD" placeholder="GLD">
+                </div>
+                <div class="ticker-input-wrap">
+                    <span class="ticker-label">Asset 5</span>
+                    <input type="text" class="ticker-input" value="VNQ" placeholder="VNQ">
+                </div>
+                <div class="ticker-input-wrap">
+                    <span class="ticker-label">Asset 6</span>
+                    <input type="text" class="ticker-input" placeholder="e.g. DBC">
+                </div>
+                <div class="ticker-input-wrap">
+                    <span class="ticker-label">Asset 7</span>
+                    <input type="text" class="ticker-input" placeholder="e.g. IEF">
+                </div>
+                <div class="ticker-input-wrap">
+                    <span class="ticker-label">Asset 8</span>
+                    <input type="text" class="ticker-input" placeholder="e.g. EEM">
+                </div>
+                <div class="ticker-input-wrap">
+                    <span class="ticker-label">Asset 9</span>
+                    <input type="text" class="ticker-input" placeholder="">
+                </div>
+                <div class="ticker-input-wrap">
+                    <span class="ticker-label">Asset 10</span>
+                    <input type="text" class="ticker-input" placeholder="">
+                </div>
+            </div>
+
+            <!-- Backtest Settings -->
+            <div class="section-title" style="margin-top: 24px;">Backtest Settings</div>
+            <div class="form-row form-row-4">
+                <div class="form-group">
+                    <label>Start Year</label>
+                    <input type="number" id="start-year" value="2005" min="1990" max="2026">
+                </div>
+                <div class="form-group">
+                    <label>End Year</label>
+                    <input type="number" id="end-year" value="2025" min="1990" max="2026">
+                </div>
+                <div class="form-group">
+                    <label>Initial Investment ($)</label>
+                    <input type="number" id="initial-investment" value="10000" min="100" step="1000">
+                </div>
+                <div class="form-group">
+                    <label>Cash / Risk-Free Asset</label>
+                    <input type="text" id="cash-ticker" value="SHY" placeholder="SHY or BIL">
+                    <span class="help-text">Used when model moves to cash</span>
+                </div>
+            </div>
+            <div class="form-row form-row-4">
+                <div class="form-group">
+                    <label>Benchmark</label>
+                    <input type="text" id="benchmark-ticker" value="SPY" placeholder="SPY">
+                    <span class="help-text">Buy & hold comparison</span>
+                </div>
+            </div>
+
+            <div class="btn-group">
+                <button class="btn btn-primary" id="run-btn" onclick="runBacktest()">
+                    ▶ Run Backtest
+                </button>
+                <button class="btn btn-secondary" onclick="resetForm()">
+                    ↺ Reset
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Results Section -->
+    <div id="results-section">
+        <div class="card" style="margin-bottom: 24px;">
+            <div class="card-header">
+                <div class="icon">📊</div>
+                <h2>Performance Summary</h2>
+            </div>
+            <div class="card-body">
+                <div id="metrics-grid" class="metrics-grid"></div>
+                <div id="comparison-table-wrap"></div>
+            </div>
+        </div>
+
+        <div class="card" style="margin-bottom: 24px;">
+            <div class="card-header">
+                <div class="icon">📈</div>
+                <h2>Charts & Analysis</h2>
+            </div>
+            <div class="card-body">
+                <div class="tabs" id="chart-tabs">
+                    <button class="tab-btn active" onclick="switchTab('growth')">Portfolio Growth</button>
+                    <button class="tab-btn" onclick="switchTab('drawdown')">Drawdowns</button>
+                    <button class="tab-btn" onclick="switchTab('annual')">Annual Returns</button>
+                    <button class="tab-btn" onclick="switchTab('monthly')">Monthly Returns</button>
+                    <button class="tab-btn" onclick="switchTab('rolling')">Rolling Returns</button>
+                    <button class="tab-btn" onclick="switchTab('allocation')">Allocation</button>
+                </div>
+
+                <div class="tab-content active" id="tab-growth">
+                    <div class="chart-controls">
+                        <button class="chart-btn active" onclick="toggleLogScale(false, this)">Linear</button>
+                        <button class="chart-btn" onclick="toggleLogScale(true, this)">Log Scale</button>
+                    </div>
+                    <div class="chart-wrapper">
+                        <canvas id="growth-chart"></canvas>
+                    </div>
+                </div>
+
+                <div class="tab-content" id="tab-drawdown">
+                    <div class="chart-wrapper">
+                        <canvas id="drawdown-chart"></canvas>
+                    </div>
+                </div>
+
+                <div class="tab-content" id="tab-annual">
+                    <div class="chart-wrapper">
+                        <canvas id="annual-chart"></canvas>
+                    </div>
+                </div>
+
+                <div class="tab-content" id="tab-monthly">
+                    <div class="heatmap-container" id="heatmap-container"></div>
+                </div>
+
+                <div class="tab-content" id="tab-rolling">
+                    <div class="chart-controls">
+                        <button class="chart-btn active" onclick="switchRolling('1y', this)">1 Year</button>
+                        <button class="chart-btn" onclick="switchRolling('3y', this)">3 Year</button>
+                        <button class="chart-btn" onclick="switchRolling('5y', this)">5 Year</button>
+                    </div>
+                    <div class="chart-wrapper">
+                        <canvas id="rolling-chart"></canvas>
+                    </div>
+                </div>
+
+                <div class="tab-content" id="tab-allocation">
+                    <div class="chart-wrapper">
+                        <canvas id="allocation-chart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Loading Overlay -->
+<div class="loading-overlay" id="loading-overlay">
+    <div class="spinner"></div>
+    <div class="loading-text" id="loading-text">Fetching data from Yahoo Finance...</div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- TAA Engine -->
+<script src="taa-engine.js"></script>
+
+<script>
+// ============================================================
+// GLOBAL STATE
+// ============================================================
+let backtestResult = null;
+let charts = {};
+
+const MODEL_DESCRIPTIONS = {
+    moving_average: 'Invests in assets when their adjusted close price is above the Simple Moving Average (SMA), and moves to cash when price falls below. Supports MA crossover signals.',
+    dual_momentum: 'Combines relative momentum (ranking assets by past returns) with absolute momentum (filtering against risk-free asset). Assets that pass both filters are selected; otherwise, the portfolio moves to cash.',
+    relative_strength: 'Ranks all assets by their total return over the lookback period and selects the top N performers. No absolute momentum filter is applied.',
+    adaptive_allocation: 'Selects top momentum assets by relative strength, then weights them using sophisticated schemes (risk parity or minimum variance) instead of equal weighting to minimize portfolio risk.',
+    target_volatility: 'Dynamically scales asset weights to maintain a target portfolio volatility. When realized volatility exceeds the target, equity weight is reduced and excess moves to cash.',
+    market_valuation: 'Adjusts stock/bond allocation based on estimated market valuation (PE10 proxy). Higher valuation → lower stock allocation, lower valuation → higher stock allocation.',
+    seasonal: 'Moves the portfolio to cash during specified calendar months (e.g., "Sell in May and Go Away") and invests during the remaining months.'
+};
+
+const CHART_COLORS = [
+    '#6366f1', '#f59e0b', '#10b981', '#ef4444', '#3b82f6',
+    '#ec4899', '#14b8a6', '#f97316', '#8b5cf6', '#06b6d4'
+];
+
+function onModelChange() {
+    const model = document.getElementById('taa-model').value;
+    document.querySelectorAll('.param-section').forEach(el => el.classList.remove('active'));
+    const paramSection = document.getElementById(`params-${model}`);
+    if (paramSection) paramSection.classList.add('active');
+    document.getElementById('model-description').textContent = MODEL_DESCRIPTIONS[model] || '';
+}
+
+function toggleMonth(btn) { btn.classList.toggle('active'); }
+
+function switchTab(tabId) {
+    document.querySelectorAll('#chart-tabs .tab-btn').forEach(btn => btn.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+    document.getElementById(`tab-${tabId}`).classList.add('active');
+    event.target.classList.add('active');
+    setTimeout(() => { Object.values(charts).forEach(c => { if (c && c.resize) c.resize(); }); }, 50);
+}
+
+function getFormData() {
+    const model = document.getElementById('taa-model').value;
+    const tickers = [];
+    document.querySelectorAll('.ticker-input').forEach(input => {
+        const val = input.value.trim().toUpperCase();
+        if (val) tickers.push(val);
+    });
+
+    const data = {
+        model,
+        tickers,
+        benchmarkTicker: document.getElementById('benchmark-ticker').value.trim().toUpperCase(),
+        cashTicker: document.getElementById('cash-ticker').value.trim().toUpperCase(),
+        startYear: parseInt(document.getElementById('start-year').value),
+        endYear: parseInt(document.getElementById('end-year').value),
+        initialInvestment: parseFloat(document.getElementById('initial-investment').value),
+        params: {}
+    };
+
+    switch (model) {
+        case 'moving_average':
+            data.params.ma_period = parseInt(document.getElementById('ma-period').value);
+            data.params.use_crossover = document.getElementById('ma-crossover').checked;
+            data.params.short_period = parseInt(document.getElementById('ma-short-period').value);
+            break;
+        case 'dual_momentum':
+            data.params.lookback = parseInt(document.getElementById('dm-lookback').value);
+            data.params.n_top = parseInt(document.getElementById('dm-ntop').value);
+            data.params.exclude_recent = parseInt(document.getElementById('dm-exclude').value);
+            break;
+        case 'relative_strength':
+            data.params.lookback = parseInt(document.getElementById('rs-lookback').value);
+            data.params.n_top = parseInt(document.getElementById('rs-ntop').value);
+            data.params.exclude_recent = parseInt(document.getElementById('rs-exclude').value);
+            break;
+        case 'adaptive_allocation':
+            data.params.mom_lookback = parseInt(document.getElementById('aa-mom-lookback').value);
+            data.params.vol_lookback = parseInt(document.getElementById('aa-vol-lookback').value);
+            data.params.n_top = parseInt(document.getElementById('aa-ntop').value);
+            data.params.weighting = document.getElementById('aa-weighting').value;
+            data.params.exclude_recent = 1;
+            break;
+        case 'target_volatility':
+            data.params.target_vol = parseFloat(document.getElementById('tv-target').value);
+            data.params.vol_lookback = parseInt(document.getElementById('tv-lookback').value);
+            break;
+        case 'market_valuation':
+            data.params.pe10_low = parseFloat(document.getElementById('pe10-low').value);
+            data.params.pe10_high = parseFloat(document.getElementById('pe10-high').value);
+            data.params.stock_alloc_high_pe = parseFloat(document.getElementById('pe10-stock-high').value);
+            data.params.stock_alloc_mid_pe = parseFloat(document.getElementById('pe10-stock-mid').value);
+            data.params.stock_alloc_low_pe = parseFloat(document.getElementById('pe10-stock-low').value);
+            data.params.stock_ticker = document.getElementById('pe10-stock-ticker').value.trim().toUpperCase();
+            data.params.bond_ticker = document.getElementById('pe10-bond-ticker').value.trim().toUpperCase();
+            data.tickers = [data.params.stock_ticker, data.params.bond_ticker];
+            break;
+        case 'seasonal':
+            const avoidMonths = [];
+            document.querySelectorAll('#month-grid .month-btn.active').forEach(btn => {
+                avoidMonths.push(parseInt(btn.dataset.month));
+            });
+            data.params.avoid_months = avoidMonths;
+            break;
+    }
+    return data;
+}
+
+async function runBacktest() {
+    const formData = getFormData();
+    if (formData.tickers.length === 0) {
+        showToast('Please enter at least one ticker symbol', 'error');
+        return;
+    }
+
+    const btn = document.getElementById('run-btn');
+    btn.disabled = true;
+    showLoading(true);
+
+    try {
+        backtestResult = await runTAABacktest(formData);
+        renderResults(backtestResult);
+        showToast('Backtest completed successfully!', 'success');
+    } catch (error) {
+        showToast(error.message, 'error');
+        console.error('Backtest error:', error);
+    } finally {
+        btn.disabled = false;
+        showLoading(false);
+    }
+}
+
+function renderResults(result) {
+    const section = document.getElementById('results-section');
+    section.classList.add('visible');
+    renderMetrics(result);
+    renderComparisonTable(result);
+    renderGrowthChart(result);
+    renderDrawdownChart(result);
+    renderAnnualChart(result);
+    renderMonthlyHeatmap(result);
+    renderRollingChart(result, 'rolling_1y');
+    renderAllocationChart(result);
+    section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function renderMetrics(result) {
+    const grid = document.getElementById('metrics-grid');
+    const m = result.metrics;
+    const metrics = [
+        { label: 'Final Balance', value: '$' + formatNumber(m.final_balance), cls: '' },
+        { label: 'CAGR', value: m.cagr + '%', cls: m.cagr >= 0 ? 'positive' : 'negative' },
+        { label: 'Std. Deviation', value: m.std_dev + '%', cls: '' },
+        { label: 'Sharpe Ratio', value: m.sharpe_ratio.toFixed(2), cls: m.sharpe_ratio >= 1 ? 'positive' : '' },
+        { label: 'Sortino Ratio', value: m.sortino_ratio.toFixed(2), cls: m.sortino_ratio >= 1 ? 'positive' : '' },
+        { label: 'Max Drawdown', value: m.max_drawdown + '%', cls: 'negative' },
+        { label: 'Best Year', value: m.best_year + '%', cls: 'positive' },
+        { label: 'Worst Year', value: m.worst_year + '%', cls: 'negative' },
+    ];
+    grid.innerHTML = metrics.map(m => `
+        <div class="metric-card">
+            <div class="metric-label">${m.label}</div>
+            <div class="metric-value ${m.cls}">${m.value}</div>
+        </div>
+    `).join('');
+}
+
+function renderComparisonTable(result) {
+    const wrap = document.getElementById('comparison-table-wrap');
+    if (!result.benchmark) { wrap.innerHTML = ''; return; }
+    const m = result.metrics;
+    const b = result.benchmark.metrics;
+    const rows = [
+        ['Initial Balance', '$' + formatNumber(m.initial_balance), '$' + formatNumber(b.initial_balance)],
+        ['Final Balance', '$' + formatNumber(m.final_balance), '$' + formatNumber(b.final_balance)],
+        ['CAGR', m.cagr + '%', b.cagr + '%'],
+        ['Std. Deviation', m.std_dev + '%', b.std_dev + '%'],
+        ['Sharpe Ratio', m.sharpe_ratio.toFixed(2), b.sharpe_ratio.toFixed(2)],
+        ['Sortino Ratio', m.sortino_ratio.toFixed(2), b.sortino_ratio.toFixed(2)],
+        ['Max Drawdown', m.max_drawdown + '%', b.max_drawdown + '%'],
+        ['Best Year', m.best_year + '%', b.best_year + '%'],
+        ['Worst Year', m.worst_year + '%', b.worst_year + '%'],
+    ];
+    wrap.innerHTML = `
+        <h3 style="margin: 24px 0 12px; font-size: 14px; color: var(--text-secondary);">Strategy vs Benchmark Comparison</h3>
+        <table class="comparison-table">
+            <thead><tr><th>Metric</th><th>TAA Strategy</th><th>${result.benchmark.ticker} (Buy & Hold)</th></tr></thead>
+            <tbody>${rows.map(r => `<tr><td>${r[0]}</td><td><strong>${r[1]}</strong></td><td>${r[2]}</td></tr>`).join('')}</tbody>
+        </table>
+    `;
+}
+
+function destroyChart(name) { if (charts[name]) { charts[name].destroy(); charts[name] = null; } }
+
+function fmtDate(d) { return d instanceof Date ? d.toISOString().split('T')[0] : d; }
+
+function renderGrowthChart(result, logScale = false) {
+    destroyChart('growth');
+    const ctx = document.getElementById('growth-chart').getContext('2d');
+    const datasets = [{
+        label: 'TAA Strategy',
+        data: result.growth.dates.map((d, i) => ({ x: fmtDate(d), y: result.growth.values[i] })),
+        borderColor: CHART_COLORS[0], backgroundColor: CHART_COLORS[0] + '20',
+        fill: true, borderWidth: 2, pointRadius: 0, tension: 0.1
+    }];
+    if (result.benchmark) {
+        datasets.push({
+            label: result.benchmark.ticker + ' (Buy & Hold)',
+            data: result.benchmark.growth_dates.map((d, i) => ({ x: fmtDate(d), y: result.benchmark.growth_values[i] })),
+            borderColor: CHART_COLORS[1], backgroundColor: 'transparent',
+            fill: false, borderWidth: 2, pointRadius: 0, borderDash: [5, 5], tension: 0.1
+        });
+    }
+    charts.growth = new Chart(ctx, {
+        type: 'line', data: { datasets },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { labels: { color: '#94a3b8', font: { family: 'Inter', size: 12 } } },
+                tooltip: { backgroundColor: 'rgba(17,24,39,0.95)', titleColor: '#f1f5f9', bodyColor: '#94a3b8', borderColor: 'rgba(99,102,241,0.3)', borderWidth: 1, padding: 12, callbacks: { label: ctx => ctx.dataset.label + ': $' + formatNumber(ctx.parsed.y) } }
+            },
+            scales: {
+                x: { type: 'time', time: { unit: 'year' }, ticks: { color: '#64748b', font: { family: 'Inter', size: 11 } }, grid: { color: 'rgba(99,102,241,0.08)' } },
+                y: { type: logScale ? 'logarithmic' : 'linear', ticks: { color: '#64748b', font: { family: 'Inter', size: 11 }, callback: v => '$' + formatNumber(v) }, grid: { color: 'rgba(99,102,241,0.08)' } }
+            }
+        }
+    });
+}
+
+function renderDrawdownChart(result) {
+    destroyChart('drawdown');
+    const ctx = document.getElementById('drawdown-chart').getContext('2d');
+    const datasets = [{
+        label: 'TAA Strategy Drawdown',
+        data: result.drawdowns.dates.map((d, i) => ({ x: fmtDate(d), y: result.drawdowns.values[i] })),
+        borderColor: CHART_COLORS[3], backgroundColor: CHART_COLORS[3] + '30',
+        fill: true, borderWidth: 1.5, pointRadius: 0, tension: 0.1
+    }];
+    if (result.benchmark) {
+        datasets.push({
+            label: result.benchmark.ticker + ' Drawdown',
+            data: result.benchmark.growth_dates.map((d, i) => ({ x: fmtDate(d), y: result.benchmark.dd_values[i] })),
+            borderColor: CHART_COLORS[1], backgroundColor: 'transparent',
+            fill: false, borderWidth: 1.5, pointRadius: 0, borderDash: [4, 4], tension: 0.1
+        });
+    }
+    charts.drawdown = new Chart(ctx, {
+        type: 'line', data: { datasets },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: { legend: { labels: { color: '#94a3b8', font: { family: 'Inter', size: 12 } } }, tooltip: { backgroundColor: 'rgba(17,24,39,0.95)', titleColor: '#f1f5f9', bodyColor: '#94a3b8', borderColor: 'rgba(239,68,68,0.3)', borderWidth: 1, padding: 12, callbacks: { label: ctx => ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(2) + '%' } } },
+            scales: { x: { type: 'time', time: { unit: 'year' }, ticks: { color: '#64748b', font: { family: 'Inter', size: 11 } }, grid: { color: 'rgba(99,102,241,0.08)' } }, y: { ticks: { color: '#64748b', font: { family: 'Inter', size: 11 }, callback: v => v.toFixed(0) + '%' }, grid: { color: 'rgba(99,102,241,0.08)' } } }
+        }
+    });
+}
+
+function renderAnnualChart(result) {
+    destroyChart('annual');
+    const ctx = document.getElementById('annual-chart').getContext('2d');
+    const years = Object.keys(result.annual_returns).sort();
+    const values = years.map(y => result.annual_returns[y]);
+    const colors = values.map(v => v >= 0 ? '#10b981' : '#ef4444');
+    const datasets = [{ label: 'TAA Strategy', data: values, backgroundColor: colors.map(c => c + 'CC'), borderColor: colors, borderWidth: 1, borderRadius: 4 }];
+    if (result.benchmark && result.benchmark.annual_returns) {
+        datasets.push({ label: result.benchmark.ticker + ' (Buy & Hold)', data: years.map(y => result.benchmark.annual_returns[y] || 0), backgroundColor: 'rgba(245,158,11,0.5)', borderColor: '#f59e0b', borderWidth: 1, borderRadius: 4 });
+    }
+    charts.annual = new Chart(ctx, {
+        type: 'bar', data: { labels: years, datasets },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#94a3b8', font: { family: 'Inter', size: 12 } } }, tooltip: { backgroundColor: 'rgba(17,24,39,0.95)', titleColor: '#f1f5f9', bodyColor: '#94a3b8', borderColor: 'rgba(99,102,241,0.3)', borderWidth: 1, padding: 12, callbacks: { label: ctx => ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(2) + '%' } } }, scales: { x: { ticks: { color: '#64748b', font: { family: 'Inter', size: 11 } }, grid: { display: false } }, y: { ticks: { color: '#64748b', font: { family: 'Inter', size: 11 }, callback: v => v.toFixed(0) + '%' }, grid: { color: 'rgba(99,102,241,0.08)' } } } }
+    });
+}
+
+function renderMonthlyHeatmap(result) {
+    const container = document.getElementById('heatmap-container');
+    const monthly = result.monthly_returns;
+    if (!monthly || Object.keys(monthly).length === 0) { container.innerHTML = '<p style="color:var(--text-muted)">No monthly return data.</p>'; return; }
+    const years = Object.keys(monthly).sort();
+    const mn = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    let html = '<table class="heatmap-table"><thead><tr><th>Year</th>';
+    mn.forEach(m => html += `<th>${m}</th>`);
+    html += '<th>Annual</th></tr></thead><tbody>';
+    years.forEach(year => {
+        html += `<tr><td class="year-cell">${year}</td>`;
+        let yr = 1;
+        for (let m = 1; m <= 12; m++) {
+            const val = monthly[year] && monthly[year][String(m)] !== undefined ? monthly[year][String(m)] : null;
+            if (val !== null) { yr *= (1 + val / 100); const bg = getHeatmapColor(val); const tc = Math.abs(val) > 3 ? '#fff' : '#e2e8f0'; html += `<td style="background:${bg};color:${tc}">${val.toFixed(1)}%</td>`; }
+            else html += '<td style="color:var(--text-muted)">—</td>';
+        }
+        const ar = (yr - 1) * 100; const abg = getHeatmapColor(ar); const atc = Math.abs(ar) > 5 ? '#fff' : '#e2e8f0';
+        html += `<td class="annual-cell" style="background:${abg};color:${atc}">${ar.toFixed(1)}%</td></tr>`;
+    });
+    html += '</tbody></table>';
+    container.innerHTML = html;
+}
+
+function getHeatmapColor(v) {
+    if (v > 5) return 'rgba(16,185,129,0.7)';
+    if (v > 2) return 'rgba(16,185,129,0.45)';
+    if (v > 0) return 'rgba(16,185,129,0.2)';
+    if (v > -2) return 'rgba(239,68,68,0.2)';
+    if (v > -5) return 'rgba(239,68,68,0.45)';
+    return 'rgba(239,68,68,0.7)';
+}
+
+function renderRollingChart(result, period = 'rolling_1y') {
+    destroyChart('rolling');
+    const ctx = document.getElementById('rolling-chart').getContext('2d');
+    const data = result.rolling_returns[period];
+    if (!data || !data.dates || data.dates.length === 0) return;
+    const pl = period === 'rolling_1y' ? '1-Year' : period === 'rolling_3y' ? '3-Year' : '5-Year';
+    charts.rolling = new Chart(ctx, {
+        type: 'line',
+        data: { datasets: [{ label: `${pl} Rolling Return`, data: data.dates.map((d, i) => ({ x: fmtDate(d), y: data.values[i] })), borderColor: CHART_COLORS[4], backgroundColor: CHART_COLORS[4] + '15', fill: true, borderWidth: 2, pointRadius: 0, tension: 0.2 }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#94a3b8', font: { family: 'Inter', size: 12 } } }, tooltip: { backgroundColor: 'rgba(17,24,39,0.95)', titleColor: '#f1f5f9', bodyColor: '#94a3b8', borderColor: 'rgba(99,102,241,0.3)', borderWidth: 1, padding: 12, callbacks: { label: ctx => ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(2) + '%' } } }, scales: { x: { type: 'time', time: { unit: 'year' }, ticks: { color: '#64748b', font: { family: 'Inter', size: 11 } }, grid: { color: 'rgba(99,102,241,0.08)' } }, y: { ticks: { color: '#64748b', font: { family: 'Inter', size: 11 }, callback: v => v.toFixed(0) + '%' }, grid: { color: 'rgba(99,102,241,0.08)' } } } }
+    });
+}
+
+function renderAllocationChart(result) {
+    destroyChart('allocation');
+    const ctx = document.getElementById('allocation-chart').getContext('2d');
+    const alloc = result.allocations;
+    if (!alloc || !alloc.dates || alloc.dates.length === 0) return;
+    const tickers = Object.keys(alloc.data);
+    const datasets = tickers.map((ticker, i) => ({
+        label: ticker,
+        data: alloc.dates.map((d, j) => ({ x: fmtDate(d), y: alloc.data[ticker][j] })),
+        backgroundColor: CHART_COLORS[i % CHART_COLORS.length] + '80',
+        borderColor: CHART_COLORS[i % CHART_COLORS.length],
+        borderWidth: 1, fill: true, pointRadius: 0
+    }));
+    const cashData = alloc.dates.map((d, j) => {
+        let total = 0; tickers.forEach(t => total += alloc.data[t][j]);
+        return { x: fmtDate(d), y: Math.max(0, 100 - total) };
+    });
+    datasets.push({ label: 'Cash', data: cashData, backgroundColor: 'rgba(100,116,139,0.5)', borderColor: '#64748b', borderWidth: 1, fill: true, pointRadius: 0 });
+    charts.allocation = new Chart(ctx, {
+        type: 'line', data: { datasets },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#94a3b8', font: { family: 'Inter', size: 12 } } }, tooltip: { backgroundColor: 'rgba(17,24,39,0.95)', titleColor: '#f1f5f9', bodyColor: '#94a3b8', borderColor: 'rgba(99,102,241,0.3)', borderWidth: 1, padding: 12, mode: 'index', callbacks: { label: ctx => ctx.dataset.label + ': ' + ctx.parsed.y.toFixed(1) + '%' } }, filler: { propagate: true } }, scales: { x: { type: 'time', time: { unit: 'year' }, ticks: { color: '#64748b', font: { family: 'Inter', size: 11 } }, grid: { color: 'rgba(99,102,241,0.08)' } }, y: { stacked: true, min: 0, max: 100, ticks: { color: '#64748b', font: { family: 'Inter', size: 11 }, callback: v => v + '%' }, grid: { color: 'rgba(99,102,241,0.08)' } } } }
+    });
+}
+
+function toggleLogScale(isLog, btn) {
+    document.querySelectorAll('#tab-growth .chart-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderGrowthChart(backtestResult, isLog);
+}
+
+function switchRolling(period, btn) {
+    document.querySelectorAll('#tab-rolling .chart-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderRollingChart(backtestResult, 'rolling_' + period);
+}
+
+function formatNumber(num) {
+    if (num >= 1000000) return (num / 1000000).toFixed(2) + 'M';
+    if (num >= 1000) return num.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+    return Number(num).toFixed(2);
+}
+
+function updateLoadingText(text) {
+    const el = document.getElementById('loading-text');
+    if (el) el.textContent = text;
+}
+
+function showLoading(show) {
+    const overlay = document.getElementById('loading-overlay');
+    if (show) overlay.classList.add('active'); else overlay.classList.remove('active');
+}
+
+function showToast(message, type = 'info') {
+    const toast = document.getElementById('toast');
+    toast.textContent = message;
+    toast.className = 'toast ' + type;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 4000);
+}
+
+function resetForm() {
+    document.getElementById('taa-model').value = 'moving_average';
+    onModelChange();
+    document.getElementById('results-section').classList.remove('visible');
+    Object.keys(charts).forEach(key => destroyChart(key));
+    backtestResult = null;
+}
+
+document.addEventListener('DOMContentLoaded', () => { onModelChange(); });
+</script>
+</body>
+</html>
